@@ -187,12 +187,27 @@ const logJournalWithPhoto = async (req, res) => {
 
     const riskScore = detectedThreats.length > 0 ? detectedThreats.length * 2 : 1;
 
-    // Save journal entry
+    // Save journal entry with encryption and metaphor
     const journalEntry = {
-      entry,
+      // Encrypted original entry (only owner can decrypt)
+      entry: encryptedEntry,
+      isEncrypted: true,
+      
+      // Metaphorical version (safe for caregiver viewing)
+      metaphorical: metaphorData.metaphorical,
+      hasMetaphor: metaphorData.hasMetaphor,
+      detectedSensitiveKeywords: metaphorData.keywords,
+      
+      // Analysis data
+      sentiment: sentimentData.sentiment,
+      sentimentScore: sentimentData.score,
       riskScore: Math.min(riskScore, 10),
       detectedThreats,
+      
+      // Media
       photoPath: photoFile ? `/uploads/${photoFile.filename}` : null,
+      
+      // Metadata
       createdAt: new Date(),
       plantId: plantId || null,
     };

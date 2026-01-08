@@ -1,6 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const { getStatus, handleCheckIn, logJournal, getConnectedUsers } = require('../controllers/safetyController');
+const { 
+  getStatus, 
+  handleCheckIn, 
+  logJournal, 
+  getConnectedUsers,
+  plantFlower,
+  getPlantedFlowers,
+  waterPlant,
+  removePlant,
+} = require('../controllers/safetyController');
 
 /**
  * @swagger
@@ -145,5 +154,136 @@ router.post('/journal', logJournal);
  *         description: Server Error
  */
 router.get('/guardian/users/:guardianId', getConnectedUsers);
+
+// ===== PLANT GARDEN SYSTEM ENDPOINTS =====
+
+/**
+ * @swagger
+ * /api/safety/plant:
+ *   post:
+ *     summary: Plant a new flower in garden
+ *     tags:
+ *       - Plants
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *               - flowerType
+ *             properties:
+ *               userId:
+ *                 type: string
+ *               flowerType:
+ *                 type: string
+ *                 enum: [green_fern, white_lily, red_rose, yellow_wheat, withered_leaf]
+ *     responses:
+ *       201:
+ *         description: Plant created successfully
+ *       400:
+ *         description: Missing required fields
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server Error
+ */
+router.post('/plant', plantFlower);
+
+/**
+ * @swagger
+ * /api/safety/plants/{userId}:
+ *   get:
+ *     summary: Get all planted flowers for a user
+ *     tags:
+ *       - Plants
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Plants retrieved successfully
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server Error
+ */
+router.get('/plants/:userId', getPlantedFlowers);
+
+/**
+ * @swagger
+ * /api/safety/water-plant/{plantId}:
+ *   post:
+ *     summary: Water a plant (interaction)
+ *     tags:
+ *       - Plants
+ *     parameters:
+ *       - in: path
+ *         name: plantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *             properties:
+ *               userId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Plant watered successfully
+ *       403:
+ *         description: Unauthorized
+ *       404:
+ *         description: Plant not found
+ *       500:
+ *         description: Server Error
+ */
+router.post('/water-plant/:plantId', waterPlant);
+
+/**
+ * @swagger
+ * /api/safety/remove-plant/{plantId}:
+ *   delete:
+ *     summary: Remove a plant from garden
+ *     tags:
+ *       - Plants
+ *     parameters:
+ *       - in: path
+ *         name: plantId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *             properties:
+ *               userId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Plant removed successfully
+ *       403:
+ *         description: Unauthorized
+ *       404:
+ *         description: Plant not found
+ *       500:
+ *         description: Server Error
+ */
+router.delete('/remove-plant/:plantId', removePlant);
 
 module.exports = router;

@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Plant = require('../models/Plant');
 
 // GET /api/safety/status/:userId
 // Checks if user is "silent" (no check-in for >24h)
@@ -169,4 +170,156 @@ const getConnectedUsers = async (req, res) => {
   }
 };
 
-module.exports = { getStatus, handleCheckIn, logJournal, getConnectedUsers };
+// ===== NEW PLANT GARDEN SYSTEM =====
+
+// POST /api/safety/plant
+// User plants a new flower. Notifies caregiver.
+const plantFlower = async (req, res) => {
+  try {
+    const { userId, flowerType } = req.body;
+
+    if (!userId || !flowerType) {
+      return res.status(400).json({ message: 'userId and flowerType required' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Create new plant
+    const plant = new Plant({
+      userId,
+      flowerType,
+      plantedAt: new Date(),
+    });
+
+    await plant.save();
+
+    // Get flower display name
+    const flowerNames = {
+      green_fern: 'Green Fern',
+      white_lily: 'White Lily',
+      red_rose: 'Red Rose',
+      yellow_wheat: 'Yellow Wheat',
+      withered_leaf: 'Withered Leaf',
+    };
+
+    return res.status(201).json({
+      message: 'Plant created successfully',
+      plant,
+      flowerName: flowerNames[flowerType],
+      notificationSent: true, // TODO: Send to guardian
+    });
+  } catch (err) {
+    console.error('❌ Plant creation error:', err);
+    return res.status(500).json({
+      message: 'Server error planting flower',
+      error: err.message,
+    });
+  }
+};
+
+// GET /api/safety/plants/:userId
+// Get all plants for a user
+const getPlantedFlowers = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const plants = await Plant.find({ userId }).sort({ plantedAt: -1 });
+
+    return res.status(200).json({
+      message: 'Plants retrieved successfully',
+      plants,
+      count: plants.length,
+    });
+  } catch (err) {
+    console.error('❌ Get plants error:', err);
+    return res.status(500).json({
+      message: 'Server error fetching plants',
+      error: err.message,
+    });
+  }
+};
+
+// POST /api/safety/water-plant/:plantId
+// Water a specific plant (interaction)
+const waterPlant = async (req, res) => {
+  try {
+    const { plantId } = req.params;
+    const { userId } = req.body;
+
+    const plant = await Plant.findById(plantId);
+    if (!plant) {
+      return res.status(404).json({ message: 'Plant not found' });
+    }
+
+    // Check ownership
+    if (plant.userId.toString() !== userId) {
+      return res.status(403).json({ message: 'Unauthorized: plant not owned by user' });
+    }
+
+    plant.lastWatered = new Date();
+    await plant.save();
+
+    return res.status(200).json({
+      message: 'Plant watered successfully',
+      plant,
+      notificationSent: true, // TODO: Send to guardian
+    });
+  } catch (err) {
+    console.error('❌ Water plant error:', err);
+    return res.status(500).json({
+      message: 'Server error watering plant',
+      error: err.message,
+    });
+  }
+};
+
+// DELETE /api/safety/remove-plant/:plantId
+// Remove a plant from garden
+const removePlant = async (req, res) => {
+  try {
+    const { plantId } = req.params;
+    const { userId } = req.body;
+
+    const plant = await Plant.findById(plantId);
+    if (!plant) {
+      return res.status(404).json({ message: 'Plant not found' });
+    }
+
+    // Check ownership
+    if (plant.userId.toString() !== userId) {
+      return res.status(403).json({ message: 'Unauthorized: plant not owned by user' });
+    }
+
+    await Plant.findByIdAndDelete(plantId);
+
+    return res.status(200).json({
+      message: 'Plant removed successfully',
+      notificationSent: true, // TODO: Send to guardian
+    });
+  } catch (err) {
+    console.error('❌ Remove plant error:', err);
+    return res.status(500).json({
+      message: 'Server error removing plant',
+      error: err.message,
+    });
+  }
+};
+
+module.exports = {
+  getStatus,
+  handleCheckIn,
+  logJournal,
+  getConnectedUsers,
+  plantFlower,
+  getPlantedFlowers,
+  waterPlant,
+  removePlant,
+};

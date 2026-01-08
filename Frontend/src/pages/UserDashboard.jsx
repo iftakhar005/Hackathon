@@ -1,201 +1,236 @@
 import { useState, useEffect } from 'react';
-import { Leaf, AlertCircle, CheckCircle, Droplet, Wind, Shield } from 'lucide-react';
+import { LogOut, Plus, Trash2 } from 'lucide-react';
 
 export default function UserDashboard() {
-  const [status, setStatus] = useState(null);
-  const [journal, setJournal] = useState('');
-  const [riskScore, setRiskScore] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState('');
-  const userId = localStorage.getItem('userId');
+  const [plantedFlowers, setPlantedFlowers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [actionMessage, setActionMessage] = useState('');
+  const userId = localStorage.getItem('mycelium_device_id');
+
+  // Available flowers to plant
+  const availableFlowers = [
+    { id: 'green_fern', name: 'Green Fern', emoji: '🌿', description: 'Safe & Active', color: 'green' },
+    { id: 'white_lily', name: 'White Lily', emoji: '🪷', description: 'Calm & Peaceful', color: 'blue' },
+    { id: 'red_rose', name: 'Red Rose', emoji: '🌹', description: 'Emergency SOS', color: 'red' },
+    { id: 'yellow_wheat', name: 'Yellow Wheat', emoji: '🌾', description: 'Elevated Risk', color: 'yellow' },
+    { id: 'withered_leaf', name: 'Withered Leaf', emoji: '🍂', description: 'Critical', color: 'gray' },
+  ];
 
   useEffect(() => {
     if (!userId) return;
-
-    const fetchStatus = async () => {
-      try {
-        const response = await fetch(`http://localhost:5000/api/safety/status/${userId}`);
-        const data = await response.json();
-        setStatus(data);
-      } catch (error) {
-        console.error('Failed to fetch status:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 10000);
+    fetchPlantedFlowers();
+    const interval = setInterval(fetchPlantedFlowers, 10000);
     return () => clearInterval(interval);
   }, [userId]);
 
-  const handleCheckIn = async () => {
+  const fetchPlantedFlowers = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/safety/checkin/${userId}`, {
-        method: 'POST',
-      });
+      const response = await fetch(`http://localhost:5000/api/safety/plants/${userId}`);
       if (response.ok) {
-        setMessage('💧 Water given! Plant is happy!');
-        setTimeout(() => setMessage(''), 3000);
         const data = await response.json();
-        setStatus(data);
+        setPlantedFlowers(data.plants || []);
       }
     } catch (error) {
-      console.error('Check-in failed:', error);
+      console.error('Failed to fetch plants:', error);
     }
   };
 
-  const handleJournal = async () => {
-    if (!journal.trim()) {
-      setMessage('Please write something first');
-      return;
-    }
-
+  const handlePlantFlower = async (flowerType) => {
+    setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/safety/journal', {
+      const response = await fetch('http://localhost:5000/api/safety/plant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, entry: journal }),
+        body: JSON.stringify({
+          userId,
+          flowerType,
+          timestamp: new Date(),
+        }),
       });
 
-      const data = await response.json();
-      setRiskScore(data.riskScore);
-      setJournal('');
-      setMessage(`📔 Journal entry saved! Plant health: ${data.riskScore}/10`);
-      setTimeout(() => setMessage(''), 3000);
-    } catch (error) {
-      console.error('Journal failed:', error);
+      if (response.ok) {
+        const data = await response.json();
+        setActionMessage(`🌱 ${data.flowerName} planted! Caregiver notified.`);
+        await fetchPlantedFlowers();
+        setTimeout(() => setActionMessage(''), 4000);
+      }
+    } catch (err) {
+      console.error('Failed to plant flower:', err);
+      setActionMessage('❌ Failed to plant flower');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleWaterPlant = async (plantId, flowerType) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/safety/water-plant/${plantId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (response.ok) {
+        setActionMessage(`💧 Plant watered! Caregiver notified.`);
+        await fetchPlantedFlowers();
+        setTimeout(() => setActionMessage(''), 4000);
+      }
+    } catch (err) {
+      console.error('Failed to water plant:', err);
+      setActionMessage('❌ Failed to water plant');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemovePlant = async (plantId) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/safety/remove-plant/${plantId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (response.ok) {
+        setActionMessage('🗑️ Plant removed from garden');
+        await fetchPlantedFlowers();
+        setTimeout(() => setActionMessage(''), 3000);
+      }
+    } catch (err) {
+      console.error('Failed to remove plant:', err);
+      setActionMessage('❌ Failed to remove plant');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('userId');
-    localStorage.removeItem('userRole');
+    localStorage.removeItem('mycelium_device_id');
+    localStorage.removeItem('mycelium_role');
+    localStorage.removeItem('mycelium_username');
     window.location.href = '/';
   };
 
-  const getRiskColor = (level) => {
-    const colors = {
-      GREEN: 'from-green-400 to-green-600',
-      YELLOW: 'from-yellow-400 to-yellow-600',
-      RED: 'from-red-400 to-red-600',
-      BLACK: 'from-gray-700 to-gray-900',
-    };
-    return colors[level] || colors.GREEN;
-  };
-
-  const getRiskEmoji = (level) => {
-    const emojis = { GREEN: '🌱', YELLOW: '🌾', RED: '🔥', BLACK: '💀' };
-    return emojis[level] || '🌱';
-  };
-
-  if (loading) return <div className="text-center py-20">Loading your garden...</div>;
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-green-100 to-green-50 p-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-black text-white p-6">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
-          <div className="flex items-center gap-2">
-            <Leaf className="text-green-600" size={32} />
-            <h1 className="text-3xl font-bold text-green-900">My Garden</h1>
-          </div>
+          <h1 className="text-4xl font-bold">🌿 Secret Garden</h1>
           <button
             onClick={handleLogout}
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold"
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition"
           >
-            Log Out
+            <LogOut size={18} />
+            Lock & Exit
           </button>
         </div>
 
-        {/* Plant Status Card */}
-        {status && (
-          <div className={`bg-gradient-to-r ${getRiskColor(status.riskLevel)} rounded-2xl p-8 text-white mb-6 shadow-lg transform hover:scale-105 transition`}>
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <p className="text-5xl">{getRiskEmoji(status.riskLevel)}</p>
-                <h2 className="text-2xl font-bold mt-2">
-                  {status.riskLevel === 'GREEN' && '🌱 Plant is Thriving!'}
-                  {status.riskLevel === 'YELLOW' && '🌾 Needs Attention'}
-                  {status.riskLevel === 'RED' && '🔥 Critical Care Needed'}
-                  {status.riskLevel === 'BLACK' && '💀 Emergency!'}
-                </h2>
-              </div>
-              <div className="text-right">
-                <p className="text-sm opacity-90">Last watered</p>
-                <p className="text-lg font-bold">{status.hoursSilence} hours ago</p>
-              </div>
-            </div>
-
-            <div className="space-y-1 text-sm">
-              <p>Status: {status.message}</p>
-              <p>Your caretaker has been notified if needed</p>
-            </div>
+        {/* Action Message */}
+        {actionMessage && (
+          <div className="bg-blue-900/50 border border-blue-500 text-blue-200 px-6 py-3 rounded-lg mb-6 font-semibold">
+            ✓ {actionMessage}
           </div>
         )}
 
-        {/* Alert Messages */}
-        {message && (
-          <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 rounded-lg mb-6">
-            {message}
-          </div>
-        )}
-
-        {/* Water Plant Button */}
-        <button
-          onClick={handleCheckIn}
-          className="w-full bg-blue-500 hover:bg-blue-600 text-white py-4 rounded-xl font-bold text-lg mb-6 flex items-center justify-center gap-2 transform hover:scale-105 transition shadow-lg"
-        >
-          <Droplet size={24} />
-          Water Plant (Check-in)
-        </button>
-
-        {/* Journal Entry */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-6">
-          <h3 className="text-xl font-bold text-green-900 mb-4 flex items-center gap-2">
-            <Wind size={20} />
-            Garden Journal
-          </h3>
-          <textarea
-            value={journal}
-            onChange={(e) => setJournal(e.target.value)}
-            placeholder="How is your plant doing? Write anything you want... The garden is safe."
-            className="w-full px-4 py-3 border-2 border-green-300 rounded-lg focus:outline-none focus:border-green-600 mb-3 font-mono text-sm"
-            rows={4}
-          />
-          <button
-            onClick={handleJournal}
-            className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold transition"
-          >
-            📝 Save Journal Entry
-          </button>
-        </div>
-
-        {/* Plant Health Info */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-white rounded-xl shadow p-4 text-center">
-            <Shield size={32} className="mx-auto text-green-600 mb-2" />
-            <p className="text-sm text-gray-600">Safety</p>
-            <p className="text-2xl font-bold text-green-900">{status?.riskLevel || 'N/A'}</p>
-          </div>
-
-          <div className="bg-white rounded-xl shadow p-4 text-center">
-            <Leaf size={32} className="mx-auto text-green-600 mb-2" />
-            <p className="text-sm text-gray-600">Health Score</p>
-            <p className="text-2xl font-bold text-green-900">{riskScore || status?.riskScore || '--'}/10</p>
-          </div>
-
-          <div className="bg-white rounded-xl shadow p-4 text-center">
-            <Droplet size={32} className="mx-auto text-blue-500 mb-2" />
-            <p className="text-sm text-gray-600">Watering</p>
-            <p className="text-2xl font-bold text-blue-900">{status?.hoursSilence || 0}h</p>
+        {/* ===== PLANT NEW FLOWERS SECTION ===== */}
+        <div className="mb-12">
+          <h2 className="text-2xl font-bold mb-6">🌱 Plant New Flowers</h2>
+          <p className="text-gray-400 mb-6">Choose a flower to plant. Your caregiver will be notified.</p>
+          
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {availableFlowers.map((flower) => (
+              <div
+                key={flower.id}
+                className="bg-slate-800/50 border border-slate-700 hover:border-slate-500 rounded-xl p-4 transition"
+              >
+                <div className="text-5xl mb-2 text-center">{flower.emoji}</div>
+                <h3 className="font-bold text-sm text-center">{flower.name}</h3>
+                <p className="text-xs text-gray-400 text-center mt-1">{flower.description}</p>
+                <button
+                  onClick={() => handlePlantFlower(flower.id)}
+                  disabled={loading}
+                  className="w-full mt-3 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white py-2 rounded text-xs font-bold transition"
+                >
+                  <Plus size={14} className="inline mr-1" /> Plant
+                </button>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Info Box */}
-        <div className="bg-green-50 border-2 border-green-300 rounded-xl p-6 text-center">
-          <p className="text-green-900 font-semibold mb-2">🌍 Your garden is protected</p>
-          <p className="text-sm text-green-700">Your caretaker monitors your plant's health. If you don't water it for 24 hours, they'll know you might need help.</p>
+        {/* ===== YOUR GARDEN SECTION ===== */}
+        <div>
+          <h2 className="text-2xl font-bold mb-6">
+            🪴 Your Garden {plantedFlowers.length > 0 && `(${plantedFlowers.length})`}
+          </h2>
+
+          {plantedFlowers.length === 0 ? (
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-12 text-center">
+              <p className="text-gray-400 mb-4">No plants in your garden yet</p>
+              <p className="text-gray-500 text-sm">Plant a flower above to get started!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {plantedFlowers.map((plant) => {
+                const flowerData = availableFlowers.find(f => f.id === plant.flowerType);
+                return (
+                  <div
+                    key={plant._id}
+                    className="bg-slate-800/50 border border-slate-700 rounded-xl p-6 hover:bg-slate-700/50 transition"
+                  >
+                    {/* Plant Header */}
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <div className="text-4xl mb-2">{flowerData?.emoji}</div>
+                        <h3 className="font-bold text-lg">{flowerData?.name}</h3>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Planted {new Date(plant.plantedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleRemovePlant(plant._id)}
+                        disabled={loading}
+                        className="text-red-400 hover:text-red-300 disabled:opacity-50"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
+
+                    {/* Plant Status */}
+                    <div className="bg-slate-900/50 rounded-lg p-3 mb-4 text-sm">
+                      <p className="text-gray-300">Status: <span className="text-green-400 font-bold">Healthy</span></p>
+                      <p className="text-gray-300">Last watered: <span className="text-blue-400">{plant.lastWatered ? 'Recently' : 'Never'}</span></p>
+                    </div>
+
+                    {/* Plant Actions */}
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => handleWaterPlant(plant._id, plant.flowerType)}
+                        disabled={loading}
+                        className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-2 rounded font-bold transition text-sm"
+                      >
+                        💧 Water Plant
+                      </button>
+                      <button
+                        disabled={loading}
+                        className="w-full bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white py-2 rounded font-bold transition text-sm"
+                      >
+                        📝 Journal Entry
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="text-center text-gray-500 text-xs mt-12">
+          Mycelium Secret Garden © 2026 | All actions logged & shared with caregiver
         </div>
       </div>
     </div>

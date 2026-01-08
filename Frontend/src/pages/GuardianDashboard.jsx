@@ -7,7 +7,8 @@ export default function GuardianDashboard() {
   const [searchUsername, setSearchUsername] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const guardianId = localStorage.getItem('userId');
+  const guardianId = localStorage.getItem('mycelium_device_id');
+  const guardianName = localStorage.getItem('mycelium_username');
 
   // Fetch connected users
   useEffect(() => {
@@ -65,8 +66,8 @@ export default function GuardianDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: searchUsername, // In real app, this would be the user's ID found via username
-          guardianUsername: localStorage.getItem('username'),
+          userId: searchUsername, // TODO: look up by username -> userId
+          guardianUsername: guardianName,
         }),
       });
 
@@ -87,9 +88,9 @@ export default function GuardianDashboard() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('userId');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('username');
+    localStorage.removeItem('mycelium_device_id');
+    localStorage.removeItem('mycelium_role');
+    localStorage.removeItem('mycelium_username');
     window.location.href = '/';
   };
 
@@ -127,6 +128,12 @@ export default function GuardianDashboard() {
             <Users className="text-blue-600" size={32} />
             <h1 className="text-3xl font-bold text-blue-900">Garden Caretaker</h1>
           </div>
+          {guardianId && (
+            <div className="bg-blue-100 border border-blue-300 text-blue-900 px-3 py-2 rounded-lg text-sm font-mono">
+              <p className="font-semibold">Guardian ID</p>
+              <p className="truncate" title={guardianId}>{guardianId}</p>
+            </div>
+          )}
           <button
             onClick={handleLogout}
             className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold"

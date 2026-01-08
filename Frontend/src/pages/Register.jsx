@@ -54,10 +54,20 @@ export default function Register() {
         }),
       });
 
-      const data = await response.json();
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (parseErr) {
+        console.error('JSON parse error:', parseErr);
+        console.error('Response status:', response.status);
+        console.error('Response text:', await response.text());
+        setError('Invalid server response. Check console for details.');
+        setLoading(false);
+        return;
+      }
 
       if (!response.ok) {
-        setError(data.message || 'Registration failed');
+        setError(data.message || `Registration failed (${response.status})`);
         setLoading(false);
         return;
       }

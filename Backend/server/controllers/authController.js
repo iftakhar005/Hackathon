@@ -91,29 +91,44 @@ const handleLogin = async (req, res) => {
 
 const handleRegister = async (req, res) => {
   try {
-    const { username, role, guardianEmail, guardianId, fakePin, realPin, panicPin } = req.body;
+    // Normalize inputs to avoid whitespace/duplicate-key issues
+    const cleanUsername = (req.body.username || '').trim();
+    const cleanRole = (req.body.role || '').trim();
+    const cleanGuardianEmail = (req.body.guardianEmail || '').trim();
+    const cleanGuardianId = (req.body.guardianId || '').trim();
+    const { fakePin, realPin, panicPin } = req.body;
 
-    if (!username || !role) {
+    console.log('📝 Registration Request:', {
+      username: cleanUsername,
+      role: cleanRole,
+      guardianEmail: cleanGuardianEmail,
+      guardianId: cleanGuardianId,
+      fakePin,
+      realPin,
+      panicPin,
+    });
+
+    if (!cleanUsername || !cleanRole) {
       return res.status(400).json({ message: 'Username and role (USER/GUARDIAN) required' });
     }
 
-    if (!['USER', 'GUARDIAN'].includes(role)) {
+    if (!['USER', 'GUARDIAN'].includes(cleanRole)) {
       return res.status(400).json({ message: 'Role must be USER or GUARDIAN' });
     }
 
     // Users can provide either guardianEmail OR guardianId, but must provide at least one
-    if (role === 'USER' && !guardianEmail && !guardianId) {
+    if (cleanRole === 'USER' && !cleanGuardianEmail && !cleanGuardianId) {
       return res.status(400).json({ message: 'Guardian Email OR Guardian ID is required for USER role' });
     }
 
-    const existingUser = await User.findOne({ username });
+    const existingUser = await User.findOne({ username: cleanUsername });
     if (existingUser) {
       return res.status(409).json({ message: 'Username already exists' });
     }
 
     // If guardianId is provided, verify it exists and is a GUARDIAN
-    if (guardianId) {
-      const guardian = await User.findById(guardianId);
+    if (cleanGuardianId) {
+      const guardian = await User.findById(cleanGuardianId);
       if (!guardian) {
         return res.status(404).json({ message: 'Guardian ID not found' });
       }
@@ -123,14 +138,16 @@ const handleRegister = async (req, res) => {
     }
 
     const newUser = await User.create({
-      username,
-      role,
-      guardianEmail: guardianEmail || '',
-      guardianId: guardianId || null,
+      username: cleanUsername,
+      role: cleanRole,
+      guardianEmail: cleanGuardianEmail || '',
+      guardianId: cleanGuardianId || null,
       fakePin: fakePin || '1234',
       realPin: realPin || '9999',
       panicPin: panicPin || '0000',
     });
+
+    console.log('✅ User created:', newUser._id);
 
     return res.status(201).json({
       message: 'Device setup complete. Disguise active.',
@@ -139,6 +156,14 @@ const handleRegister = async (req, res) => {
       role: newUser.role,
     });
   } catch (err) {
+    console.error('❌ Registration error:', err.message);
+    console.error('Stack:', err.stack);
+
+    // Handle duplicate key errors gracefully
+    if (err.code === 11000) {
+      return res.status(409).json({ message: 'Username already exists' });
+    }
+
     return res.status(500).json({
       message: 'Server error during registration',
       error: err.message,

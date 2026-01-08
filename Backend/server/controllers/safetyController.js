@@ -162,7 +162,16 @@ const logJournalWithPhoto = async (req, res) => {
 
     const plant = plantId ? await Plant.findById(plantId) : null;
 
-    // Simulated sentiment analysis
+    // Transform to metaphorical plant language for privacy
+    const metaphorData = transformToMetaphor(entry);
+    
+    // Analyze sentiment
+    const sentimentData = analyzeSentiment(entry);
+    
+    // Encrypt the original entry
+    const encryptedEntry = encryptJournal(entry, userId);
+
+    // Simulated sentiment analysis for risk detection
     const riskKeywords = [
       'danger',
       'hurt',

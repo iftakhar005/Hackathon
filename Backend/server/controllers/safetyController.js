@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Plant = require('../models/Plant');
+const { encryptJournal, transformToMetaphor, analyzeSentiment } = require('../utils/encryption');
 
 // GET /api/safety/status/:userId
 // Checks if user is "silent" (no check-in for >24h)

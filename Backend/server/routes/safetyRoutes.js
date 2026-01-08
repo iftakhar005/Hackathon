@@ -138,6 +138,42 @@ router.post('/journal', logJournal);
 
 /**
  * @swagger
+ * /api/safety/journal-with-photo:
+ *   post:
+ *     summary: Log a journal entry with optional photo
+ *     tags:
+ *       - Safety
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *               - entry
+ *             properties:
+ *               userId:
+ *                 type: string
+ *               plantId:
+ *                 type: string
+ *               entry:
+ *                 type: string
+ *               photo:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       201:
+ *         description: Journal entry with photo logged
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Server Error
+ */
+router.post('/journal-with-photo', upload.single('photo'), logJournalWithPhoto);
+
+/**
+ * @swagger
  * /api/safety/guardian/users/{guardianId}:
  *   get:
  *     summary: Get all connected users for a guardian

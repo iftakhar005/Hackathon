@@ -142,4 +142,31 @@ const logJournal = async (req, res) => {
   }
 };
 
-module.exports = { getStatus, handleCheckIn, logJournal };
+// GET /api/guardian/users/:guardianId
+// Get all connected users for a guardian
+const getConnectedUsers = async (req, res) => {
+  try {
+    const { guardianId } = req.params;
+
+    const guardian = await User.findById(guardianId).populate('connectedUsers', 'username riskLevel lastActiveAt');
+    if (!guardian) {
+      return res.status(404).json({ message: 'Guardian not found' });
+    }
+
+    if (guardian.role !== 'GUARDIAN') {
+      return res.status(403).json({ message: 'User is not a guardian' });
+    }
+
+    return res.status(200).json({
+      guardianUsername: guardian.username,
+      connectedUsers: guardian.connectedUsers || [],
+    });
+  } catch (err) {
+    return res.status(500).json({
+      message: 'Server error fetching users',
+      error: err.message,
+    });
+  }
+};
+
+module.exports = { getStatus, handleCheckIn, logJournal, getConnectedUsers };

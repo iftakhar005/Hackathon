@@ -1,43 +1,53 @@
 const User = require('../models/User');
 
 // POST /api/auth/login
-// User enters a PIN. If it's realPin, they get access to dashboard.
-// If it's fakePin, return "Error" to maintain disguise.
-// If it's panicPin, trigger wipe.
+// Device Binding Version: Accepts { userId, pin } where userId comes from localStorage
+// This PIN-only login is for devices that have been "bound" to a specific user
+// If realPin matches -> Return { mode: "DASHBOARD", userId, token }
+// If fakePin matches -> Return { mode: "CALCULATOR_ERROR" }
+// If panicPin matches -> Return { mode: "PANIC_TRIGGERED" }
+// If no userId found -> Return { mode: "CALCULATOR_ERROR" }
 
 const handleLogin = async (req, res) => {
   try {
-    const { username, pin } = req.body;
+    const { userId, pin } = req.body;
 
-    if (!username || !pin) {
-      return res.status(400).json({ message: 'Username and PIN required' });
+    // Guard: Check if userId is provided
+    if (!userId || !pin) {
+      return res.status(400).json({ 
+        mode: 'CALCULATOR_ERROR',
+        message: 'Device not properly configured'
+      });
     }
 
-    const user = await User.findOne({ username });
+    // Find user by userId (not username)
+    const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ 
+        mode: 'CALCULATOR_ERROR',
+        message: 'Device binding lost. Please reconfigure.'
+      });
     }
 
     // Panic PIN: Trigger self-destruct
     if (pin === user.panicPin) {
-      // Simulate wipe: reset evidence and journals
       user.evidenceVault = [];
       user.journals = [];
       user.guardianAlertSent = false;
       await user.save();
       return res.status(200).json({
+        mode: 'PANIC_TRIGGERED',
         success: true,
         message: 'DURESS_DETECTED',
-        action: 'WIPE_DATA',
       });
     }
 
-    // Fake PIN: Return "Error" to maintain disguise
+    // Fake PIN: Return error to maintain calculator disguise
     if (pin === user.fakePin) {
       return res.status(403).json({
+        mode: 'CALCULATOR_ERROR',
         success: false,
         message: 'Error',
-        action: 'SHOW_CALCULATOR',
       });
     }
 
@@ -46,17 +56,26 @@ const handleLogin = async (req, res) => {
       user.lastActiveAt = Date.now();
       user.isSilenced = false;
       await user.save();
+      
+      // Generate a simple session token (in production, use JWT)
+      const token = Buffer.from(userId).toString('base64');
+      
       return res.status(200).json({
+        mode: 'DASHBOARD',
         success: true,
         message: 'Access Granted',
-        action: 'UNLOCK_DASHBOARD',
         userId: user._id,
+        username: user.username,
+        token: token,
         riskLevel: user.riskLevel,
       });
     }
 
-    // Invalid PIN
-    return res.status(401).json({ message: 'Invalid PIN' });
+    // Invalid PIN - return calculator error
+    return res.status(401).json({ 
+      mode: 'CALCULATOR_ERROR',
+      message: 'Invalid PIN'
+    });
   } catch (err) {
     return res.status(500).json({
       message: 'Server error during login',
@@ -66,12 +85,25 @@ const handleLogin = async (req, res) => {
 };
 
 // POST /api/auth/register
+// Device Binding Version: One-time setup to bind a device to a user
+// Returns userId which must be saved to localStorage as 'mycelium_device_id'
+// This userId is then used for all future PIN-based logins on this device
+
 const handleRegister = async (req, res) => {
   try {
-    const { username, guardianEmail, fakePin, realPin, panicPin } = req.body;
+    const { username, role, guardianEmail, guardianId, fakePin, realPin, panicPin } = req.body;
 
-    if (!username || !guardianEmail) {
-      return res.status(400).json({ message: 'Username and Guardian Email required' });
+    if (!username || !role) {
+      return res.status(400).json({ message: 'Username and role (USER/GUARDIAN) required' });
+    }
+
+    if (!['USER', 'GUARDIAN'].includes(role)) {
+      return res.status(400).json({ message: 'Role must be USER or GUARDIAN' });
+    }
+
+    // Users can provide either guardianEmail OR guardianId, but must provide at least one
+    if (role === 'USER' && !guardianEmail && !guardianId) {
+      return res.status(400).json({ message: 'Guardian Email OR Guardian ID is required for USER role' });
     }
 
     const existingUser = await User.findOne({ username });
@@ -79,18 +111,32 @@ const handleRegister = async (req, res) => {
       return res.status(409).json({ message: 'Username already exists' });
     }
 
+    // If guardianId is provided, verify it exists and is a GUARDIAN
+    if (guardianId) {
+      const guardian = await User.findById(guardianId);
+      if (!guardian) {
+        return res.status(404).json({ message: 'Guardian ID not found' });
+      }
+      if (guardian.role !== 'GUARDIAN') {
+        return res.status(400).json({ message: 'User with provided ID is not a Guardian' });
+      }
+    }
+
     const newUser = await User.create({
       username,
-      guardianEmail,
+      role,
+      guardianEmail: guardianEmail || '',
+      guardianId: guardianId || null,
       fakePin: fakePin || '1234',
       realPin: realPin || '9999',
       panicPin: panicPin || '0000',
     });
 
     return res.status(201).json({
-      message: 'User registered successfully',
-      userId: newUser._id,
+      message: 'Device setup complete. Disguise active.',
+      userId: newUser._id.toString(),
       username: newUser.username,
+      role: newUser.role,
     });
   } catch (err) {
     return res.status(500).json({
@@ -100,4 +146,43 @@ const handleRegister = async (req, res) => {
   }
 };
 
-module.exports = { handleLogin, handleRegister };
+// POST /api/auth/connect-guardian
+// Users can connect to guardians by username
+const connectGuardian = async (req, res) => {
+  try {
+    const { userId, guardianUsername } = req.body;
+
+    if (!userId || !guardianUsername) {
+      return res.status(400).json({ message: 'userId and guardianUsername required' });
+    }
+
+    const guardian = await User.findOne({ username: guardianUsername, role: 'GUARDIAN' });
+    if (!guardian) {
+      return res.status(404).json({ message: 'Guardian not found' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (guardian.connectedUsers.includes(userId)) {
+      return res.status(400).json({ message: 'Already connected to this guardian' });
+    }
+
+    guardian.connectedUsers.push(userId);
+    await guardian.save();
+
+    return res.status(200).json({
+      message: 'Connected to guardian successfully',
+      guardianUsername: guardian.username,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      message: 'Server error',
+      error: err.message,
+    });
+  }
+};
+
+module.exports = { handleLogin, handleRegister, connectGuardian };

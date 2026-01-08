@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getStatus, handleCheckIn, logJournal } = require('../controllers/safetyController');
+const { getStatus, handleCheckIn, logJournal, getConnectedUsers } = require('../controllers/safetyController');
 
 /**
  * @swagger
@@ -109,5 +109,41 @@ router.post('/checkin/:userId', handleCheckIn);
  *         description: Server Error
  */
 router.post('/journal', logJournal);
+
+/**
+ * @swagger
+ * /api/safety/guardian/users/{guardianId}:
+ *   get:
+ *     summary: Get all connected users for a guardian
+ *     tags:
+ *       - Guardian
+ *     parameters:
+ *       - in: path
+ *         name: guardianId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of connected users
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 guardianUsername:
+ *                   type: string
+ *                 connectedUsers:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *       403:
+ *         description: User is not a guardian
+ *       404:
+ *         description: Guardian not found
+ *       500:
+ *         description: Server Error
+ */
+router.get('/guardian/users/:guardianId', getConnectedUsers);
 
 module.exports = router;

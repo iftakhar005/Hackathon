@@ -26,27 +26,42 @@ const CalculatorWrapper = () => {
   const handleEquals = async () => {
     const pin = display;
 
+    // CRITICAL: Check if device is bound to a user
+    const deviceId = localStorage.getItem('mycelium_device_id');
+    
+    if (!deviceId) {
+      // Guard Clause: Device not configured
+      alert('🔐 Device not configured. Please complete setup first.');
+      navigate('/setup');
+      return;
+    }
+
     setLoading(true);
     try {
-      // Try to login with the PIN
+      // Device-bound login: send userId + pin
       const response = await axios.post('http://localhost:5000/api/auth/login', {
-        username: 'alice',
+        userId: deviceId,
         pin: pin,
       });
 
-      if (response.data.success) {
-        if (response.data.action === 'UNLOCK_DASHBOARD') {
-          // Real PIN - Unlock dashboard
-          localStorage.setItem('userId', response.data.userId);
-          localStorage.setItem('riskLevel', response.data.riskLevel);
-          navigate('/secret-dashboard');
-        } else if (response.data.action === 'WIPE_DATA') {
-          // Panic PIN - Self-destruct
-          setDisplay('DURESS MODE');
-          setTimeout(() => setDisplay('0'), 2000);
-        }
-      } else if (response.data.action === 'SHOW_CALCULATOR') {
-        // Fake PIN - Show error
+      const { mode, success } = response.data;
+
+      // Handle different response modes
+      if (mode === 'DASHBOARD' && success) {
+        // Real PIN - Grant dashboard access
+        localStorage.setItem('userId', response.data.userId);
+        localStorage.setItem('userRole', localStorage.getItem('mycelium_role'));
+        localStorage.setItem('username', localStorage.getItem('mycelium_username'));
+        
+        // Redirect to appropriate dashboard based on role
+        const role = localStorage.getItem('mycelium_role');
+        navigate(role === 'GUARDIAN' ? '/guardian-dashboard' : '/user-dashboard');
+      } else if (mode === 'PANIC_TRIGGERED') {
+        // Panic PIN - Trigger emergency wipe
+        setDisplay('DURESS MODE');
+        setTimeout(() => setDisplay('0'), 2000);
+      } else if (mode === 'CALCULATOR_ERROR') {
+        // Fake PIN or invalid - Show calculator error
         setDisplay('Error');
         setTimeout(() => setDisplay('0'), 1500);
       }

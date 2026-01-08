@@ -9,6 +9,12 @@ const UserSchema = new mongoose.Schema(
       trim: true,
       minlength: 3,
     },
+    role: {
+      type: String,
+      enum: ['USER', 'GUARDIAN'],
+      required: true,
+      default: 'USER',
+    },
     fakePin: {
       type: String,
       required: true,
@@ -26,8 +32,13 @@ const UserSchema = new mongoose.Schema(
     },
     guardianEmail: {
       type: String,
-      required: true,
       lowercase: true,
+      default: '',
+    },
+    guardianId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
     },
     lastActiveAt: {
       type: Date,
@@ -63,6 +74,12 @@ const UserSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    connectedUsers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
   },
   { timestamps: true }
 );

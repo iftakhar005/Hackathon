@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { handleLogin, handleRegister } = require('../controllers/authController');
+const { handleLogin, handleRegister, connectGuardian } = require('../controllers/authController');
 
 /**
  * @swagger
  * /api/auth/login:
  *   post:
- *     summary: Login with PIN (Fake, Real, or Panic)
+ *     summary: Device-Bound PIN Login (Calculator Interface)
+ *     description: Login using userId (from device binding) + PIN. The calculator has no username field, so userId is stored locally during setup.
  *     tags:
  *       - Authentication
  *     requestBody:
@@ -16,12 +17,13 @@ const { handleLogin, handleRegister } = require('../controllers/authController')
  *           schema:
  *             type: object
  *             required:
- *               - username
+ *               - userId
  *               - pin
  *             properties:
- *               username:
+ *               userId:
  *                 type: string
- *                 example: alice
+ *                 example: "65a1b2c3d4e5f6g7h8i9j0k1"
+ *                 description: Device binding ID from localStorage (mycelium_device_id)
  *               pin:
  *                 type: string
  *                 example: "9999"
@@ -33,19 +35,23 @@ const { handleLogin, handleRegister } = require('../controllers/authController')
  *             schema:
  *               type: object
  *               properties:
+ *                 mode:
+ *                   type: string
+ *                   enum: [DASHBOARD, CALCULATOR_ERROR, PANIC_TRIGGERED]
  *                 success:
  *                   type: boolean
  *                 message:
  *                   type: string
- *                 action:
+ *                 userId:
  *                   type: string
- *                   enum: [UNLOCK_DASHBOARD, SHOW_CALCULATOR, WIPE_DATA]
+ *                 token:
+ *                   type: string
  *       400:
- *         description: Bad Request
+ *         description: Bad Request - Missing userId or pin
  *       401:
  *         description: Invalid PIN
  *       404:
- *         description: User not found
+ *         description: Device not found
  *       500:
  *         description: Server Error
  */
@@ -55,7 +61,8 @@ router.post('/login', handleLogin);
  * @swagger
  * /api/auth/register:
  *   post:
- *     summary: Register a new Mycelium user
+ *     summary: One-Time Device Setup (Create User Account)
+ *     description: First-time setup page where user registers and binds the device. Returns userId which should be saved to localStorage as 'mycelium_device_id'.
  *     tags:
  *       - Authentication
  *     requestBody:
@@ -66,11 +73,15 @@ router.post('/login', handleLogin);
  *             type: object
  *             required:
  *               - username
- *               - guardianEmail
+ *               - role
  *             properties:
  *               username:
  *                 type: string
  *                 example: alice
+ *               role:
+ *                 type: string
+ *                 enum: [USER, GUARDIAN]
+ *                 example: USER
  *               guardianEmail:
  *                 type: string
  *                 example: bob@gmail.com
@@ -95,7 +106,10 @@ router.post('/login', handleLogin);
  *                   type: string
  *                 userId:
  *                   type: string
+ *                   description: CRITICAL - Save this to localStorage as 'mycelium_device_id'
  *                 username:
+ *                   type: string
+ *                 role:
  *                   type: string
  *       400:
  *         description: Bad Request
@@ -105,5 +119,40 @@ router.post('/login', handleLogin);
  *         description: Server Error
  */
 router.post('/register', handleRegister);
+
+/**
+ * @swagger
+ * /api/auth/connect-guardian:
+ *   post:
+ *     summary: Connect a USER to a GUARDIAN by username
+ *     tags:
+ *       - Authentication
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *               - guardianUsername
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 example: "67801234567890abcdef1234"
+ *               guardianUsername:
+ *                 type: string
+ *                 example: bob
+ *     responses:
+ *       200:
+ *         description: Connected to guardian successfully
+ *       400:
+ *         description: Bad Request or Already connected
+ *       404:
+ *         description: Guardian or User not found
+ *       500:
+ *         description: Server Error
+ */
+router.post('/connect-guardian', connectGuardian);
 
 module.exports = router;

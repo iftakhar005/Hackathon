@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Plus, Trash2 } from 'lucide-react';
+import { LogOut, Plus, Trash2, X, Upload } from 'lucide-react';
 
 export default function UserDashboard() {
   const [plantedFlowers, setPlantedFlowers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState('');
+  const [journalModal, setJournalModal] = useState(null); // null or plantId
+  const [journalText, setJournalText] = useState('');
+  const [journalPhoto, setJournalPhoto] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
   const userId = localStorage.getItem('mycelium_device_id');
 
   // Available flowers to plant
@@ -101,6 +105,59 @@ export default function UserDashboard() {
     } catch (err) {
       console.error('Failed to remove plant:', err);
       setActionMessage('❌ Failed to remove plant');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePhotoSelect = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setJournalPhoto(file);
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleJournalSubmit = async () => {
+    if (!journalText.trim()) {
+      setActionMessage('❌ Please write something in your journal');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('userId', userId);
+      formData.append('plantId', journalModal);
+      formData.append('entry', journalText);
+      if (journalPhoto) {
+        formData.append('photo', journalPhoto);
+      }
+
+      const response = await fetch('http://localhost:5000/api/safety/journal-with-photo', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        setActionMessage('📝 Journal entry saved with love!');
+        setJournalModal(null);
+        setJournalText('');
+        setJournalPhoto(null);
+        setPhotoPreview(null);
+        await fetchPlantedFlowers();
+        setTimeout(() => setActionMessage(''), 3000);
+      } else {
+        setActionMessage('❌ Failed to save journal entry');
+      }
+    } catch (err) {
+      console.error('Failed to submit journal:', err);
+      setActionMessage('❌ Error submitting journal');
     } finally {
       setLoading(false);
     }
@@ -215,6 +272,7 @@ export default function UserDashboard() {
                         💧 Water Plant
                       </button>
                       <button
+                        onClick={() => setJournalModal(plant._id)}
                         disabled={loading}
                         className="w-full bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white py-2 rounded font-bold transition text-sm"
                       >
@@ -227,6 +285,106 @@ export default function UserDashboard() {
             </div>
           )}
         </div>
+
+        {/* Journal Entry Modal */}
+        {journalModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-slate-800 rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold text-white">📝 Write in Your Journal</h3>
+                <button
+                  onClick={() => {
+                    setJournalModal(null);
+                    setJournalText('');
+                    setJournalPhoto(null);
+                    setPhotoPreview(null);
+                  }}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* Journal Text Area */}
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-gray-300 mb-2">
+                  Your thoughts & feelings
+                </label>
+                <textarea
+                  value={journalText}
+                  onChange={(e) => setJournalText(e.target.value)}
+                  placeholder="Write about your day, your feelings, or anything on your mind..."
+                  className="w-full bg-slate-900 border border-slate-600 rounded-lg p-4 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-base"
+                  rows="6"
+                />
+              </div>
+
+              {/* Photo Upload */}
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-gray-300 mb-2">
+                  Add a photo (optional)
+                </label>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg transition">
+                    <Upload size={18} />
+                    <span className="text-sm font-semibold">Choose Photo</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoSelect}
+                      className="hidden"
+                    />
+                  </label>
+                  {journalPhoto && (
+                    <span className="text-sm text-green-400">✓ {journalPhoto.name}</span>
+                  )}
+                </div>
+
+                {/* Photo Preview */}
+                {photoPreview && (
+                  <div className="mt-4 relative">
+                    <img
+                      src={photoPreview}
+                      alt="Journal photo preview"
+                      className="max-h-64 w-auto rounded-lg border border-slate-600"
+                    />
+                    <button
+                      onClick={() => {
+                        setJournalPhoto(null);
+                        setPhotoPreview(null);
+                      }}
+                      className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-1 rounded"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleJournalSubmit}
+                  disabled={loading}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white py-3 rounded-lg font-bold transition"
+                >
+                  {loading ? 'Saving...' : '💾 Save Journal Entry'}
+                </button>
+                <button
+                  onClick={() => {
+                    setJournalModal(null);
+                    setJournalText('');
+                    setJournalPhoto(null);
+                    setPhotoPreview(null);
+                  }}
+                  className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="text-center text-gray-500 text-xs mt-12">

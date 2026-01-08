@@ -101,77 +101,69 @@ export default function GuardianDashboard() {
 
         {/* Connected Plants/Users */}
         <div>
-          <h2 className="text-2xl font-bold text-blue-900 mb-4">
-            {connectedUsers.length === 0 ? '🪴 Your Garden' : `🪴 Your Garden (${connectedUsers.length} ${connectedUsers.length === 1 ? 'Plant' : 'Plants'})`}
-          </h2>
+          <h2 className="text-2xl font-bold text-blue-900 mb-6">🪴 Your Garden Overview</h2>
 
-          {connectedUsers.length === 0 ? (
+          {loading ? (
             <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-              <Leaf size={48} className="mx-auto text-gray-300 mb-4" />
-              <p className="text-xl text-gray-600 mb-4">No plants connected yet</p>
-              <p className="text-gray-500">Search above to connect with plant owners and start caring for them!</p>
+              <p className="text-gray-600">Loading your connected users' gardens...</p>
+            </div>
+          ) : connectedUsers.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
+              <p className="text-xl text-gray-600 mb-4">No connected users yet</p>
+              <p className="text-gray-500">You can connect with plant owners to start monitoring them.</p>
             </div>
           ) : (
-            <div className="grid gap-4">
-              {connectedUsers.map((userId) => {
-                const status = userStatuses[userId] || {};
-                const riskColor = getRiskColor(status.riskLevel || 'GREEN');
+            <div className="space-y-8">
+              {connectedUsers.map((user) => (
+                <div key={user._id} className="bg-white rounded-2xl shadow-lg p-6">
+                  {/* User Header */}
+                  <div className="border-b-2 border-gray-200 pb-4 mb-6">
+                    <h3 className="text-2xl font-bold text-blue-900">
+                      👤 {user.username}
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-2">
+                      Status: <span className="font-semibold text-blue-600">{user.riskLevel || 'GREEN'}</span> | 
+                      Last seen: {new Date(user.lastActiveAt).toLocaleString()}
+                    </p>
+                  </div>
 
-                return (
-                  <div
-                    key={userId}
-                    className={`${riskColor.bg} border-2 ${riskColor.border} rounded-xl p-6 shadow-lg transform hover:scale-102 transition`}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <p className="text-4xl">{getRiskEmoji(status.riskLevel || 'GREEN')}</p>
-                          <div>
-                            <h3 className={`text-2xl font-bold ${riskColor.text}`}>
-                              {status.username || userId}
-                            </h3>
-                            <p className={`text-sm ${riskColor.text} opacity-75`}>
-                              {getAlertMessage(status.riskLevel || 'GREEN')}
+                  {/* User's Plants Grid */}
+                  {user.plants && user.plants.length > 0 ? (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700 mb-4">
+                        🌱 {user.plantCount} plant{user.plantCount !== 1 ? 's' : ''} in their garden
+                      </p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {user.plants.map((plant) => (
+                          <div
+                            key={plant._id}
+                            className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 rounded-xl p-4 hover:shadow-lg transition"
+                          >
+                            <div className="text-4xl text-center mb-2">
+                              {getFlowerEmoji(plant.flowerType)}
+                            </div>
+                            <h4 className="font-bold text-sm text-center text-blue-900">
+                              {getFlowerName(plant.flowerType)}
+                            </h4>
+                            <p className="text-xs text-gray-600 text-center mt-2">
+                              Planted: {new Date(plant.plantedAt).toLocaleDateString()}
+                            </p>
+                            <p className="text-xs text-blue-600 text-center mt-1 font-semibold">
+                              Status: <span className={plant.lastWatered ? 'text-green-600' : 'text-yellow-600'}>
+                                {plant.lastWatered ? '✓ Healthy' : '⚠ Needs care'}
+                              </span>
                             </p>
                           </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4 mt-4">
-                          <div>
-                            <p className="text-xs text-gray-600">Hours Since Check-in</p>
-                            <p className={`text-2xl font-bold ${riskColor.text}`}>
-                              {status.hoursSilence || 0}h
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-600">Health Status</p>
-                            <p className={`text-2xl font-bold ${riskColor.text}`}>
-                              {status.riskLevel || 'UNKNOWN'}
-                            </p>
-                          </div>
-                        </div>
-
-                        {status.riskLevel === 'RED' && (
-                          <div className="mt-4 bg-red-200 border-l-4 border-red-600 p-3 rounded">
-                            <p className="text-red-900 font-bold">⚠️ This plant needs immediate care!</p>
-                            <p className="text-red-800 text-sm">Consider reaching out to check on them.</p>
-                          </div>
-                        )}
-
-                        {status.riskLevel === 'BLACK' && (
-                          <div className="mt-4 bg-gray-800 border-l-4 border-gray-900 p-3 rounded">
-                            <p className="text-red-200 font-bold">🚨 CRITICAL EMERGENCY!</p>
-                            <p className="text-red-100 text-sm">This plant has been silent for more than 24 hours. Immediate action required!</p>
-                            <button className="mt-2 w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded font-bold">
-                              📞 Contact Emergency
-                            </button>
-                          </div>
-                        )}
+                        ))}
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500">No plants planted yet</p>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>

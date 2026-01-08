@@ -143,9 +143,84 @@ const logJournal = async (req, res) => {
   }
 };
 
-// GET /api/guardian/users/:guardianId
-// Get all connected users for a guardian
-const getConnectedUsers = async (req, res) => {
+// POST /api/safety/journal-with-photo
+// User logs a journal entry with optional photo
+const logJournalWithPhoto = async (req, res) => {
+  try {
+    const { userId, plantId, entry } = req.body;
+    const photoFile = req.file;
+
+    if (!userId || !entry) {
+      return res.status(400).json({ message: 'UserId and entry required' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const plant = plantId ? await Plant.findById(plantId) : null;
+
+    // Simulated sentiment analysis
+    const riskKeywords = [
+      'danger',
+      'hurt',
+      'afraid',
+      'scared',
+      'threat',
+      'abuse',
+      'help',
+    ];
+    const detectedThreats = riskKeywords.filter((keyword) =>
+      entry.toLowerCase().includes(keyword)
+    );
+
+    const riskScore = detectedThreats.length > 0 ? detectedThreats.length * 2 : 1;
+
+    // Save journal entry
+    const journalEntry = {
+      entry,
+      riskScore: Math.min(riskScore, 10),
+      detectedThreats,
+      photoPath: photoFile ? `/uploads/${photoFile.filename}` : null,
+      createdAt: new Date(),
+      plantId: plantId || null,
+    };
+
+    if (!user.journals) {
+      user.journals = [];
+    }
+    user.journals.push(journalEntry);
+
+    // Update plant lastWatered if associated with a plant
+    if (plant) {
+      plant.lastWatered = new Date();
+      await plant.save();
+    }
+
+    // Update user risk level based on journal analysis
+    if (riskScore >= 8) {
+      user.riskLevel = 'RED';
+    } else if (riskScore >= 5) {
+      user.riskLevel = 'YELLOW';
+    }
+
+    await user.save();
+
+    return res.status(201).json({
+      message: 'Journal entry with photo logged',
+      riskScore: Math.min(riskScore, 10),
+      detectedThreats,
+      photoPath: journalEntry.photoPath,
+    });
+  } catch (err) {
+    console.error('❌ Journal with photo error:', err);
+    return res.status(500).json({
+      message: 'Server error logging journal',
+      error: err.message,
+    });
+  }
+};
   try {
     const { guardianId } = req.params;
 
@@ -372,6 +447,7 @@ module.exports = {
   getStatus,
   handleCheckIn,
   logJournal,
+  logJournalWithPhoto,
   getConnectedUsers,
   getConnectedUsersPlants,
   plantFlower,

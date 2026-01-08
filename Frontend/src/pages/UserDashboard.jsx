@@ -145,13 +145,14 @@ export default function UserDashboard() {
       });
 
       if (response.ok) {
-        setActionMessage('📝 Journal entry saved with love!');
+        const data = await response.json();
+        setActionMessage(`📝 Journal entry saved with love! ${data.notification || ''}`);
         setJournalModal(null);
         setJournalText('');
         setJournalPhoto(null);
         setPhotoPreview(null);
         await fetchPlantedFlowers();
-        setTimeout(() => setActionMessage(''), 3000);
+        setTimeout(() => setActionMessage(''), 5000);
       } else {
         setActionMessage('❌ Failed to save journal entry');
       }

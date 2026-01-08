@@ -233,10 +233,14 @@ const logJournalWithPhoto = async (req, res) => {
     await user.save();
 
     return res.status(201).json({
-      message: 'Journal entry with photo logged',
+      message: 'Journal entry with photo logged and encrypted',
+      encrypted: true,
+      metaphorical: metaphorData.metaphorical,
+      sentiment: sentimentData.sentiment,
       riskScore: Math.min(riskScore, 10),
       detectedThreats,
       photoPath: journalEntry.photoPath,
+      notification: `✅ Your thoughts are safely encrypted. Caregiver sees: "${metaphorData.metaphorical}"`,
     });
   } catch (err) {
     console.error('❌ Journal with photo error:', err);

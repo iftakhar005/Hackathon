@@ -1,91 +1,38 @@
 import { useState, useEffect } from 'react';
-import { Users, AlertCircle, CheckCircle, Leaf, Search, Plus } from 'lucide-react';
+import { Users, AlertCircle, LogOut, Trash2 } from 'lucide-react';
 
 export default function GuardianDashboard() {
   const [connectedUsers, setConnectedUsers] = useState([]);
-  const [userStatuses, setUserStatuses] = useState({});
-  const [searchUsername, setSearchUsername] = useState('');
+  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(false);
   const guardianId = localStorage.getItem('mycelium_device_id');
   const guardianName = localStorage.getItem('mycelium_username');
 
-  // Fetch connected users
+  // Fetch connected users with their plants
   useEffect(() => {
     if (!guardianId) return;
 
-    const fetchUsers = async () => {
+    const fetchConnectedUsersPlants = async () => {
+      setLoading(true);
       try {
-        const response = await fetch(`http://localhost:5000/api/safety/guardian/users/${guardianId}`);
+        const response = await fetch(`http://localhost:5000/api/safety/guardian/users/${guardianId}/plants`);
         if (response.ok) {
           const data = await response.json();
           setConnectedUsers(data.connectedUsers || []);
+        } else {
+          console.error('Failed to fetch connected users');
         }
       } catch (error) {
-        console.error('Failed to fetch users:', error);
+        console.error('Error fetching connected users:', error);
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchUsers();
-  }, [guardianId]);
-
-  // Poll status for all connected users
-  useEffect(() => {
-    if (connectedUsers.length === 0) return;
-
-    const fetchStatuses = async () => {
-      const statuses = {};
-      for (const userId of connectedUsers) {
-        try {
-          const response = await fetch(`http://localhost:5000/api/safety/status/${userId}`);
-          if (response.ok) {
-            const data = await response.json();
-            statuses[userId] = data;
-          }
-        } catch (error) {
-          console.error(`Failed to fetch status for ${userId}:`, error);
-        }
-      }
-      setUserStatuses(statuses);
-    };
-
-    fetchStatuses();
-    const interval = setInterval(fetchStatuses, 5000);
+    fetchConnectedUsersPlants();
+    const interval = setInterval(fetchConnectedUsersPlants, 10000); // Refresh every 10 seconds
     return () => clearInterval(interval);
-  }, [connectedUsers]);
-
-  const handleConnectUser = async () => {
-    if (!searchUsername.trim()) {
-      setMessage('Please enter a username');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch('http://localhost:5000/api/auth/connect-guardian', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: searchUsername, // TODO: look up by username -> userId
-          guardianUsername: guardianName,
-        }),
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        setMessage(`✅ Connected to ${searchUsername}!`);
-        setSearchUsername('');
-        // Refresh the connected users list
-        // In a real app, we'd add the user to the list
-      } else {
-        setMessage(`❌ ${data.message}`);
-      }
-    } catch (error) {
-      setMessage('❌ Connection error');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [guardianId]);
 
   const handleLogout = () => {
     localStorage.removeItem('mycelium_device_id');
@@ -94,29 +41,28 @@ export default function GuardianDashboard() {
     window.location.href = '/';
   };
 
-  const getRiskColor = (level) => {
-    const colors = {
-      GREEN: { bg: 'bg-green-100', border: 'border-green-500', text: 'text-green-900' },
-      YELLOW: { bg: 'bg-yellow-100', border: 'border-yellow-500', text: 'text-yellow-900' },
-      RED: { bg: 'bg-red-100', border: 'border-red-500', text: 'text-red-900' },
-      BLACK: { bg: 'bg-gray-200', border: 'border-gray-700', text: 'text-gray-900' },
+  // Get flower emoji based on type
+  const getFlowerEmoji = (flowerType) => {
+    const emojis = {
+      green_fern: '🌿',
+      white_lily: '🪷',
+      red_rose: '🌹',
+      yellow_wheat: '🌾',
+      withered_leaf: '🍂',
     };
-    return colors[level] || colors.GREEN;
+    return emojis[flowerType] || '🌿';
   };
 
-  const getRiskEmoji = (level) => {
-    const emojis = { GREEN: '🌱', YELLOW: '🌾', RED: '🔥', BLACK: '💀' };
-    return emojis[level] || '🌱';
-  };
-
-  const getAlertMessage = (level) => {
-    const messages = {
-      GREEN: 'Plant is thriving! ✓',
-      YELLOW: 'Needs attention - check in soon',
-      RED: 'Immediate care needed!',
-      BLACK: 'CRITICAL - Emergency support required!',
+  // Get flower name
+  const getFlowerName = (flowerType) => {
+    const names = {
+      green_fern: 'Green Fern',
+      white_lily: 'White Lily',
+      red_rose: 'Red Rose',
+      yellow_wheat: 'Yellow Wheat',
+      withered_leaf: 'Withered Leaf',
     };
-    return messages[level] || 'Unknown status';
+    return names[flowerType] || 'Unknown Flower';
   };
 
   return (
@@ -145,35 +91,12 @@ export default function GuardianDashboard() {
         {/* Connect New User Card */}
         <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
           <h3 className="text-xl font-bold text-blue-900 mb-4 flex items-center gap-2">
-            <Plus size={20} />
-            Connect with a Plant Owner
+            ➕ Connected Users
           </h3>
-
-          <div className="flex gap-3 mb-3">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-              <input
-                type="text"
-                value={searchUsername}
-                onChange={(e) => setSearchUsername(e.target.value)}
-                placeholder="Enter their username..."
-                className="w-full pl-10 pr-4 py-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:border-blue-600"
-              />
-            </div>
-            <button
-              onClick={handleConnectUser}
-              disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-bold transition"
-            >
-              {loading ? 'Connecting...' : 'Connect'}
-            </button>
-          </div>
-
-          {message && (
-            <p className={`text-sm ${message.includes('✅') ? 'text-green-600' : 'text-red-600'}`}>
-              {message}
-            </p>
-          )}
+          <p className="text-gray-700">
+            You are currently monitoring <strong>{connectedUsers.length}</strong> plant owner{connectedUsers.length !== 1 ? 's' : ''}.
+            Their plants are displayed below. Check in regularly to ensure they're safe.
+          </p>
         </div>
 
         {/* Connected Plants/Users */}

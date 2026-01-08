@@ -149,7 +149,7 @@ const getConnectedUsers = async (req, res) => {
   try {
     const { guardianId } = req.params;
 
-    const guardian = await User.findById(guardianId).populate('connectedUsers', 'username riskLevel lastActiveAt');
+    const guardian = await User.findById(guardianId);
     if (!guardian) {
       return res.status(404).json({ message: 'Guardian not found' });
     }
@@ -158,13 +158,68 @@ const getConnectedUsers = async (req, res) => {
       return res.status(403).json({ message: 'User is not a guardian' });
     }
 
+    // Find all users who have this guardian as their guardianId
+    const connectedUsers = await User.find({
+      guardianId: guardianId,
+      role: 'USER',
+    }).select('_id username riskLevel lastActiveAt');
+
     return res.status(200).json({
       guardianUsername: guardian.username,
-      connectedUsers: guardian.connectedUsers || [],
+      connectedUsers: connectedUsers || [],
     });
   } catch (err) {
     return res.status(500).json({
       message: 'Server error fetching users',
+      error: err.message,
+    });
+  }
+};
+
+// GET /api/guardian/users/:guardianId/plants
+// Get all plants for all connected users
+const getConnectedUsersPlants = async (req, res) => {
+  try {
+    const { guardianId } = req.params;
+
+    const guardian = await User.findById(guardianId);
+    if (!guardian) {
+      return res.status(404).json({ message: 'Guardian not found' });
+    }
+
+    if (guardian.role !== 'GUARDIAN') {
+      return res.status(403).json({ message: 'User is not a guardian' });
+    }
+
+    // Find all users connected to this guardian
+    const connectedUsers = await User.find({
+      guardianId: guardianId,
+      role: 'USER',
+    }).select('_id username riskLevel lastActiveAt');
+
+    // Fetch plants for all connected users
+    const usersWithPlants = [];
+    for (const user of connectedUsers) {
+      const plants = await Plant.find({ userId: user._id }).sort({ plantedAt: -1 });
+      usersWithPlants.push({
+        _id: user._id,
+        username: user.username,
+        riskLevel: user.riskLevel,
+        lastActiveAt: user.lastActiveAt,
+        plants: plants,
+        plantCount: plants.length,
+      });
+    }
+
+    return res.status(200).json({
+      guardianUsername: guardian.username,
+      connectedUsers: usersWithPlants,
+      totalUsers: usersWithPlants.length,
+    });
+  } catch (err) {
+    console.error('❌ Get connected users plants error:', err);
+    return res.status(500).json({
+      message: 'Server error fetching plants',
       error: err.message,
     });
   }
@@ -318,6 +373,7 @@ module.exports = {
   handleCheckIn,
   logJournal,
   getConnectedUsers,
+  getConnectedUsersPlants,
   plantFlower,
   getPlantedFlowers,
   waterPlant,

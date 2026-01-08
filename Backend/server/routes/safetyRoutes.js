@@ -5,6 +5,7 @@ const {
   handleCheckIn, 
   logJournal, 
   getConnectedUsers,
+  getConnectedUsersPlants,
   plantFlower,
   getPlantedFlowers,
   waterPlant,
@@ -154,6 +155,31 @@ router.post('/journal', logJournal);
  *         description: Server Error
  */
 router.get('/guardian/users/:guardianId', getConnectedUsers);
+
+/**
+ * @swagger
+ * /api/safety/guardian/users/{guardianId}/plants:
+ *   get:
+ *     summary: Get all plants for all connected users (for guardian dashboard)
+ *     tags:
+ *       - Guardian
+ *     parameters:
+ *       - in: path
+ *         name: guardianId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of connected users with their plants
+ *       403:
+ *         description: User is not a guardian
+ *       404:
+ *         description: Guardian not found
+ *       500:
+ *         description: Server Error
+ */
+router.get('/guardian/users/:guardianId/plants', getConnectedUsersPlants);
 
 // ===== PLANT GARDEN SYSTEM ENDPOINTS =====
 
